@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>🎮 Medeiros Cover Tool v3.6 – Stock OS H700</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+:root{--card-width:150px}
+
+body{
+  margin:0;
+  background:#0b0b0b;
+  color:#eee;
+  font-family:Arial, sans-serif;
+}
+
+header{
+  background:#111;
+  padding:12px;
+  text-align:center;
+  font-size:18px;
+  color:#00d4ff;
+}
+
+#toolbar{
+  display:flex;
+  gap:8px;
+  padding:10px;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+
+button,select,input{
+  padding:6px 10px;
+  font-size:13px;
+  cursor:pointer;
+}
+
+#dropZone{
+  margin:10px;
+  padding:20px;
+  border:2px dashed #444;
+  text-align:center;
+  color:#aaa;
+}
+
+#grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(var(--card-width),1fr));
+  gap:15px;
+  padding:15px;
+  justify-content:center;
+}
+
+.card{
+  width:var(--card-width);
+  background:#000;
+  border-radius:8px;
+  overflow:hidden;
+  position:relative;
+}
+
+.card canvas{
+  width:100%;
+  height:100%;
+  display:block;
+}
+
+.card span{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  background:rgba(0,0,0,.75);
+  font-size:11px;
+  padding:3px;
+  text-align:center;
+}
+
+.card.dragover{outline:3px solid #00d4ff}
+.card:hover{outline:2px solid #555}
+
+/* ===== Editor ===== */
+#editorTool{display:none}
+#editorControls{
+  display:flex;
+  gap:8px;
+  justify-content:center;
+  flex-wrap:wrap;
+  padding:10px;
+}
+#editorCanvas{
+  background:#000;
+  cursor:move;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ================= COVER TOOL ================= -->
+<div id="coverTool">
+
+<header>🎮 Medeiros Cover Tool v3.6 – Stock OS H700</header>
+
+<div id="toolbar">
+  <select id="system"></select>
+  W:<input id="w" type="number" style="width:60px">
+  H:<input id="h" type="number" style="width:60px">
+
+  <button onclick="romInput.click()">🕹️ ROMs</button>
+  <button onclick="folderInput.click()">📁 Pasta</button>
+  <button onclick="searchGoogle()">🔍 Buscar capa</button>
+  <button onclick="clearSelected()">🧹 Limpar capa</button>
+  <button onclick="exportZip()">📦 Exportar ZIP</button>
+  <button onclick="showEditor()">🎨 Editor de Capa Avançado</button>
+</div>
+
+<div id="dropZone">📂 Arraste ROMs ou imagens aqui</div>
+<div id="grid"></div>
+
+<input type="file" id="romInput" multiple hidden>
+<input type="file" id="folderInput" webkitdirectory hidden>
+<input type="file" id="imgReplaceInput" accept="image/*" hidden>
+
+</div>
+
+<!-- ================= EDITOR AVANÇADO ================= -->
+<div id="editorTool">
+
+<header>🎨 Editor de Capa Avançado</header>
+
+<div id="editorControls">
+  <button onclick="showCover()">⬅ Voltar</button>
+  W:<input id="edW" type="number" value="640" style="width:70px">
+  H:<input id="edH" type="number" value="480" style="width:70px">
+  <button onclick="resizeEditor()">↔ Ajustar</button>
+  <button onclick="loadBase()">🖼️ Imagem Base</button>
+  <button onclick="loadOverlay(0)">🏷️ Logo do Jogo</button>
+  <button onclick="loadOverlay(1)">✨ Elemento Extra</button>
+  <button onclick="exportEditor()">💾 Exportar PNG</button>
+</div>
+
+<div style="display:flex;justify-content:center;padding:10px">
+  <canvas id="editorCanvas" width="640" height="480"></canvas>
+</div>
+
+<input type="file" id="editorFile" accept="image/*" hidden>
+
+</div>
+
+<script>
+/* ========= TROCA DE AMBIENTE ========= */
+function showEditor(){
+  coverTool.style.display="none";
+  editorTool.style.display="block";
+}
+function showCover(){
+  editorTool.style.display="none";
+  coverTool.style.display="block";
+}
+
+/* ========= SISTEMAS ========= */
+const SYSTEMS = {
+ A2600:{label:"Atari 2600",path:"Roms/A2600/imgs/",w:212,h:298},
+ A5200:{label:"Atari 5200",path:"Roms/A5200/imgs/",w:212,h:298},
+ A7800:{label:"Atari 7800",path:"Roms/A7800/imgs/",w:212,h:298},
+ A800:{label:"Atari 800",path:"Roms/A800/imgs/",w:212,h:298},
+
+ AMIGA:{label:"Amiga",path:"Roms/AMIGA/imgs/",w:212,h:298},
+ ATARIST:{label:"Atari ST",path:"Roms/ATARIST/imgs/",w:212,h:298},
+ ATOMISWAVE:{label:"Atomiswave",path:"Roms/ATOMISWAVE/imgs/",w:212,h:298},
+
+ C64:{label:"C64",path:"Roms/C64/imgs/",w:212,h:298},
+
+ CPS1:{label:"CPS1",path:"Roms/CPS1/imgs/",w:212,h:298},
+ CPS2:{label:"CPS2",path:"Roms/CPS2/imgs/",w:212,h:298},
+ CPS3:{label:"CPS3",path:"Roms/CPS3/imgs/",w:212,h:298},
+
+ DOS:{label:"MS-DOS",path:"Roms/DOS/imgs/",w:212,h:298},
+
+ DREAMCAST:{label:"Dreamcast",path:"Roms/DREAMCAST/imgs/",w:280,h:240},
+
+ EASYRPG:{label:"RPG Maker",path:"Roms/EASYRPG/imgs/",w:212,h:298},
+ FBNEO:{label:"FBNeo",path:"Roms/FBNEO/imgs/",w:212,h:298},
+
+ FC:{label:"NES / Famicom",path:"Roms/FC/imgs/",w:212,h:298},
+ FDS:{label:"Famicom Disk System",path:"Roms/FDS/imgs/",w:212,h:298},
+
+ GB:{label:"Game Boy",path:"Roms/GB/imgs/",w:280,h:240},
+ GBC:{label:"Game Boy Color",path:"Roms/GBC/imgs/",w:280,h:240},
+ GBA:{label:"Game Boy Advance",path:"Roms/GBA/imgs/",w:280,h:240},
+
+ GG:{label:"Game Gear",path:"Roms/GG/imgs/",w:212,h:298},
+ GW:{label:"Game & Watch",path:"Roms/GW/imgs/",w:212,h:298},
+
+ HBMAME:{label:"HBMAME",path:"Roms/HBMAME/imgs/",w:212,h:298},
+ LYNX:{label:"Atari Lynx",path:"Roms/LYNX/imgs/",w:212,h:298},
+
+ MAME:{label:"MAME",path:"Roms/MAME/imgs/",w:212,h:298},
+
+ MD:{label:"Mega Drive",path:"Roms/MD/imgs/",w:212,h:298},
+ MDCD:{label:"Mega CD",path:"Roms/MDCD/imgs/",w:212,h:298},
+
+ MSX:{label:"MSX",path:"Roms/MSX/imgs/",w:212,h:298},
+
+ N64:{label:"Nintendo 64",path:"Roms/N64/imgs/",w:244,h:178},
+ NAOMI:{label:"NAOMI",path:"Roms/NAOMI/imgs/",w:212,h:298},
+
+ NDS:{label:"Nintendo DS",path:"Roms/NDS/imgs/",w:224,h:298},
+
+ NEOCD:{label:"Neo Geo CD",path:"Roms/NEOCD/imgs/",w:224,h:298},
+ NEOGEO:{label:"Neo Geo",path:"Roms/NEOGEO/imgs/",w:212,h:298},
+ NGP:{label:"Neo Geo Pocket",path:"Roms/NGP/imgs/",w:212,h:298},
+
+ OPENBOR:{label:"OpenBOR",path:"Roms/OPENBOR/imgs/",w:212,h:298},
+
+ PCE:{label:"PC Engine",path:"Roms/PCE/imgs/",w:280,h:240},
+ PCECD:{label:"PC Engine CD",path:"Roms/PCECD/imgs/",w:280,h:240},
+
+ PGM2:{label:"PGM2",path:"Roms/PGM2/imgs/",w:212,h:298},
+ PICO:{label:"PICO-8",path:"Roms/PICO/imgs/",w:224,h:298},
+
+ POKE:{label:"Pokemon Mini",path:"Roms/POKE/imgs/",w:212,h:298},
+
+ PS:{label:"PlayStation",path:"Roms/PS/imgs/",w:280,h:240},
+
+ PSP:{label:"PSP",path:"Roms/PSP/imgs/",w:132,h:298},
+
+ SATURN:{label:"Saturn (US/EU)",path:"Roms/SATURN/imgs/",w:212,h:298},
+ SATURNJP:{label:"Saturn (JP)",path:"Roms/SATURN/imgs/",w:280,h:240},
+
+ SCUMMVM:{label:"ScummVM",path:"Roms/SCUMMVM/imgs/",w:212,h:298},
+
+ SEGA32X:{label:"Sega 32X",path:"Roms/SEGA32X/imgs/",w:212,h:298},
+
+ SFC:{label:"SNES / Super Famicom",path:"Roms/SFC/imgs/",w:244,h:178},
+
+ SMS:{label:"Master System",path:"Roms/SMS/imgs/",w:212,h:298},
+
+ VARCADE:{label:"Arcade Vertical",path:"Roms/VARCADE/imgs/",w:212,h:298},
+
+ VB:{label:"Virtual Boy",path:"Roms/VB/imgs/",w:225,h:298},
+
+ VIC20:{label:"VIC-20",path:"Roms/VIC20/imgs/",w:212,h:298},
+
+ WS:{label:"WonderSwan Color",path:"Roms/WS/imgs/",w:224,h:298}
+};
+
+/* ========= INIT ========= */
+const systemSelect=system;
+Object.keys(SYSTEMS).forEach(k=>{
+  const o=document.createElement("option");
+  o.value=k;o.textContent=SYSTEMS[k].label;
+  systemSelect.appendChild(o);
+});
+systemSelect.onchange=()=>{
+  const s=SYSTEMS[systemSelect.value];
+  w.value=s.w;h.value=s.h;
+  document.documentElement.style.setProperty(
+    "--card-width",s.w>s.h?"180px":"150px"
+  );
+};
+systemSelect.onchange();
+
+/* ========= CORE ========= */
+const items=[];
+let currentItem=null;
+
+function clean(n){return n.replace(/\.[^/.]+$/,"");}
+
+function draw(canvas,img){
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+}
+
+function createCard(item){
+  const d=document.createElement("div");
+  d.className="card";
+  d.style.aspectRatio=`${item.canvas.width}/${item.canvas.height}`;
+  d.appendChild(item.canvas);
+
+  d.onclick=()=>{currentItem=item;imgReplaceInput.click()};
+
+  d.ondragover=e=>{e.preventDefault();d.classList.add("dragover")};
+  d.ondragleave=()=>d.classList.remove("dragover");
+  d.ondrop=e=>{
+    e.preventDefault();d.classList.remove("dragover");
+    const f=e.dataTransfer.files[0];
+    if(f && f.type.startsWith("image")) loadToItem(f,item);
+  };
+
+  const s=document.createElement("span");
+  s.textContent=item.name;
+  d.appendChild(s);
+  grid.appendChild(d);
+}
+
+function createPlaceholder(name){
+  const c=document.createElement("canvas");
+  c.width=w.value;c.height=h.value;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#000";ctx.fillRect(0,0,c.width,c.height);
+  const item={name:clean(name),canvas:c,hasImage:false};
+  items.push(item);
+  createCard(item);
+}
+
+function loadToItem(file,item){
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{draw(item.canvas,img);item.hasImage=true};
+    img.src=r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+dropZone.ondrop=e=>{
+  e.preventDefault();
+  [...e.dataTransfer.files].forEach(f=>{
+    f.type.startsWith("image")?createPlaceholder(f.name)&&loadToItem(f,items.at(-1)):createPlaceholder(f.name);
+  });
+};
+dropZone.ondragover=e=>e.preventDefault();
+
+romInput.onchange=e=>[...e.target.files].forEach(f=>createPlaceholder(f.name));
+folderInput.onchange=e=>[...e.target.files].forEach(f=>{
+  f.type.startsWith("image")?createPlaceholder(f.name)&&loadToItem(f,items.at(-1)):createPlaceholder(f.name);
+});
+
+imgReplaceInput.onchange=e=>{
+  const f=e.target.files[0];
+  if(f && currentItem) loadToItem(f,currentItem);
+};
+
+function clearSelected(){
+  if(!currentItem)return;
+  const ctx=currentItem.canvas.getContext("2d");
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,0,currentItem.canvas.width,currentItem.canvas.height);
+  currentItem.hasImage=false;
+}
+
+function searchGoogle(){
+  const t=items.find(i=>!i.hasImage)||items.at(-1);
+  if(!t)return;
+  window.open(
+    `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(
+      t.name+" "+SYSTEMS[systemSelect.value].label+" box art"
+    )}`
+  );
+}
+
+function exportZip(){
+  const zip=new JSZip();
+  const sys=SYSTEMS[systemSelect.value];
+  items.filter(i=>i.hasImage).forEach(i=>{
+    zip.file(sys.path+i.name+".png",
+      i.canvas.toDataURL("image/png").split(",")[1],
+      {base64:true});
+  });
+  zip.generateAsync({type:"blob"}).then(b=>{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(b);
+    a.download=sys.label.replace(/ /g,"_")+"_covers.zip";
+    a.click();
+  });
+}
+
+/* ========= EDITOR ========= */
+const ec=editorCanvas;
+const ectx=ec.getContext("2d");
+let base=null,overlays=[null,null],active=null;
+
+function resizeEditor(){
+  ec.width=edW.value;
+  ec.height=edH.value;
+  redrawEditor();
+}
+
+function redrawEditor(){
+  ectx.clearRect(0,0,ec.width,ec.height);
+  if(base) ectx.drawImage(base,0,0,ec.width,ec.height);
+  overlays.forEach(o=>{if(o)ectx.drawImage(o.img,o.x,o.y,o.w,o.h)});
+}
+
+function loadBase(){
+  editorFile.onchange=e=>{
+    const img=new Image();
+    img.onload=()=>{base=img;redrawEditor()};
+    img.src=URL.createObjectURL(e.target.files[0]);
+  };
+  editorFile.click();
+}
+
+function loadOverlay(i){
+  editorFile.onchange=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const r=img.width/img.height;
+      overlays[i]={img,x:50,y:50,w:200,h:200/r};
+      active=overlays[i];
+      redrawEditor();
+    };
+    img.src=URL.createObjectURL(e.target.files[0]);
+  };
+  editorFile.click();
+}
+
+ec.onmousedown=e=>{
+  overlays.forEach(o=>{
+    if(o && e.offsetX>o.x && e.offsetX<o.x+o.w &&
+            e.offsetY>o.y && e.offsetY<o.y+o.h){
+      active=o;
+    }
+  });
+};
+
+ec.onmousemove=e=>{
+  if(active && e.buttons){
+    active.x+=e.movementX;
+    active.y+=e.movementY;
+    redrawEditor();
+  }
+};
+
+ec.onwheel=e=>{
+  if(active){
+    e.preventDefault();
+    const r=active.w/active.h;
+    active.w+=e.deltaY*-0.1;
+    active.h=active.w/r;
+    redrawEditor();
+  }
+};
+
+function exportEditor(){
+  const a=document.createElement("a");
+  a.href=ec.toDataURL("image/png");
+  a.download="cover_editada.png";
+  a.click();
+}
+</script>
+
+</body>
+</html>
